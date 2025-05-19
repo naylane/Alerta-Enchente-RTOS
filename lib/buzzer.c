@@ -61,9 +61,9 @@ void buzzer_loop() {
     if (buzzer.estado) {
         int freq = 0;
         switch (buzzer.tipo_alerta) {
-            case ALERTA_AGUA:   freq = 100; break;
-            case ALERTA_CHUVA:  freq = 200; break;
-            case ALERTA_AMBOS:  freq = 400; break;
+            case ALERTA_AGUA:   freq = 50; break;
+            case ALERTA_CHUVA:  freq = 100; break;
+            case ALERTA_AMBOS:  freq = 200; break;
             default:            freq = 0;   break;
         }
         if (freq > 0) {

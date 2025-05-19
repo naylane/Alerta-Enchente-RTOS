@@ -18,8 +18,8 @@
 #define I2C_SDA 14
 #define I2C_SCL 15
 #define endereco 0x3C
-#define ADC_JOYSTICK_X 26
-#define ADC_JOYSTICK_Y 27
+#define JOYSTICK_X 26
+#define JOYSTICK_Y 27
 #define LED_GREEN 11
 #define LED_RED  13
 #define BUZZER_PIN 21
@@ -103,14 +103,13 @@ void vModoTask(void *params) {
 
 //Tarefa de leitura do ADC do Joystick
 void vJoystickTask(void *params) {
-    adc_gpio_init(ADC_JOYSTICK_Y);
-    adc_gpio_init(ADC_JOYSTICK_X);
+    adc_gpio_init(JOYSTICK_Y);
+    adc_gpio_init(JOYSTICK_X);
     adc_init();
 
     joystick_data_t joydata;
 
-    while (true)
-    {
+    while (true) {
         adc_select_input(0); // Volume de água
         joydata.y_pos = adc_read();
 
@@ -175,39 +174,24 @@ void vDisplayTask(void *params) {
     }
 }
 
-//Tarefa do LED RGB com PWM
+//Tarefa do LED RGB
 void vLedRGBTask(void *params) {
-    gpio_set_function(LED_RED, GPIO_FUNC_PWM);   // Configura GPIO como PWM
-    uint redSlice = pwm_gpio_to_slice_num(LED_RED); // Obtém o slice de PWM
-    pwm_set_wrap(redSlice, 100);                     // Define resolução (0–100)
-    pwm_set_chan_level(redSlice, PWM_CHAN_B, 0);     // Duty inicial
-    pwm_set_enabled(redSlice, true);                 // Ativa PWM
-
-    gpio_set_function(LED_GREEN, GPIO_FUNC_PWM);   
-    uint greenSlice = pwm_gpio_to_slice_num(LED_GREEN); 
-    pwm_set_wrap(greenSlice, 100);                     
-    pwm_set_chan_level(greenSlice, PWM_CHAN_A, 0);     
-    pwm_set_enabled(greenSlice, true);                 
+    gpio_init(LED_GREEN);
+    gpio_set_dir(LED_GREEN, GPIO_OUT);
+    gpio_put(LED_GREEN, 0);
+    gpio_init(LED_RED);
+    gpio_set_dir(LED_RED, GPIO_OUT);
+    gpio_put(LED_RED, 0);
 
     status_t status_atual;
-    while (true)
-    {
-        if (xQueueReceive(xQueueStatus, &status_atual, portMAX_DELAY) == pdTRUE){
-            int nivel_x = (status_atual.data.x_pos * 100) / 4095;
-            int nivel_y = (status_atual.data.y_pos * 100) / 4095;
-            int nivel_alerta = (nivel_x > nivel_y) ? nivel_x : nivel_y;
-            
-            if (nivel_alerta < 60) {
-                pwm_set_chan_level(greenSlice, PWM_CHAN_B, 100);
-                pwm_set_chan_level(redSlice, PWM_CHAN_B, 0);
+    while (true) {
+        if (xQueueReceive(xQueueStatus, &status_atual, portMAX_DELAY) == pdTRUE){            
+            if (status_atual.alerta_ativo) {
+                gpio_put(LED_GREEN, 0);
+                gpio_put(LED_RED, 1);
             } else {
-                int progresso = nivel_alerta - 60;
-                if (progresso > 20) progresso = 20; 
-                int vermelho = (progresso * 100) / 20; 
-                int verde = 100 - vermelho;
-
-                pwm_set_chan_level(redSlice, PWM_CHAN_B, vermelho);
-                pwm_set_chan_level(greenSlice, PWM_CHAN_B, verde);
+                gpio_put(LED_GREEN, 1);
+                gpio_put(LED_RED, 0);
             }
             
         }
@@ -254,7 +238,7 @@ void vMatrizLEDTask(void *params) {
         if (xQueueReceive(xQueueStatus, &status_atual, portMAX_DELAY) == pdTRUE){
             lastWakeTime = xTaskGetTickCount();
             if (status_atual.alerta_ativo){
-                set_pattern(pio, sm, 1, "vermelho"); // ALERTA
+                set_pattern(pio, sm, 1, "vermelho");
                 vTaskDelayUntil(&lastWakeTime, pdMS_TO_TICKS(250));
             } else {
                 set_pattern(pio, sm, 0, "azul");
