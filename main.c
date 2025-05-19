@@ -257,6 +257,7 @@ int main() {
     xTaskCreate(vLedRGBTask, "LED RGB Task", 256, NULL, 1, NULL);
     xTaskCreate(vBuzzerTask, "Buzzer Task", 256, NULL, 1, NULL);
     xTaskCreate(vMatrizLEDTask, "Matriz Task", 256, NULL, 1, NULL);
+    
     // Inicia o agendador
     vTaskStartScheduler();
     panic_unsupported();
