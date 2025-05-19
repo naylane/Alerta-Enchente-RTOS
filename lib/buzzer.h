@@ -7,11 +7,8 @@
 #include <stdio.h>
 
 //Protótipos de Função
-void buzzer_init();
-void buzzer_desliga();
-void tocar_alarme();
-void desligar_alarme();
-void atualizar_origem_alerta(bool agua, bool chuva);
-void alarme_loop();
+void buzzer_init(int pin);
+void buzzer_control(bool ligar, bool agua, bool chuva);
+void buzzer_loop();
 
 #endif

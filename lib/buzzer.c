@@ -1,5 +1,7 @@
 #include "buzzer.h"
 
+typedef enum { ALERTA_NENHUM, ALERTA_AGUA, ALERTA_CHUVA, ALERTA_AMBOS } alerta_t;
+
 static struct {
     int pin;
     uint slice;
@@ -7,10 +9,9 @@ static struct {
     bool ativo;
     bool estado;
     uint32_t ultima_execucao;
-    enum { ALERTA_NENHUM, ALERTA_AGUA, ALERTA_CHUVA, ALERTA_AMBOS } tipo_alerta;
+    alerta_t tipo_alerta;
 } buzzer = {0};
 
-// Inicializa o buzzer no pino especificado
 void buzzer_init(int pin) {
     buzzer.pin = pin;
     gpio_set_function(pin, GPIO_FUNC_PWM);
@@ -26,40 +27,29 @@ void buzzer_init(int pin) {
     buzzer.tipo_alerta = ALERTA_NENHUM;
 }
 
-// Desliga o buzzer
-void buzzer_desliga() {
-    pwm_set_enabled(buzzer.slice, false);
-    gpio_put(buzzer.pin, 0);
-    buzzer.estado = false;
-}
+// Função única para controlar o buzzer (liga/desliga e tipo de alerta)
+void buzzer_control(bool ligar, bool agua, bool chuva) {
+    buzzer.ativo = ligar;
+    if (agua && chuva)      buzzer.tipo_alerta = ALERTA_AMBOS;
+    else if (agua)          buzzer.tipo_alerta = ALERTA_AGUA;
+    else if (chuva)         buzzer.tipo_alerta = ALERTA_CHUVA;
+    else                    buzzer.tipo_alerta = ALERTA_NENHUM;
 
-// Ativa o alarme
-void tocar_alarme() {
-    buzzer.ativo = true;
-}
-
-// Desativa o alarme
-void desligar_alarme() {
-    buzzer.ativo = false;
-    buzzer_desliga();
-}
-
-// Atualiza o tipo de alerta
-void atualizar_origem_alerta(bool agua, bool chuva) {
-    if (agua && chuva)
-        buzzer.tipo_alerta = ALERTA_AMBOS;
-    else if (agua)
-        buzzer.tipo_alerta = ALERTA_AGUA;
-    else if (chuva)
-        buzzer.tipo_alerta = ALERTA_CHUVA;
-    else
-        buzzer.tipo_alerta = ALERTA_NENHUM;
+    if (!ligar) {
+        pwm_set_enabled(buzzer.slice, false);
+        gpio_put(buzzer.pin, 0);
+        buzzer.estado = false;
+    }
 }
 
 // Loop do alarme, alternando o estado do buzzer
-void alarme_loop() {
+void buzzer_loop() {
     if (!buzzer.ativo) {
-        if (buzzer.estado) buzzer_desliga();
+        if (buzzer.estado) {
+            pwm_set_enabled(buzzer.slice, false);
+            gpio_put(buzzer.pin, 0);
+            buzzer.estado = false;
+        }
         return;
     }
 
@@ -83,6 +73,8 @@ void alarme_loop() {
             pwm_set_enabled(buzzer.slice, true);
         }
     } else {
-        buzzer_desliga();
+        pwm_set_enabled(buzzer.slice, false);
+        gpio_put(buzzer.pin, 0);
+        buzzer.estado = false;
     }
 }

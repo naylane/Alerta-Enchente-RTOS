@@ -194,13 +194,12 @@ void vBuzzerTask(void *params) {
             if (status_atual.alerta_ativo){
                 bool agua = status_atual.data.y_pos >= 2866;
                 bool chuva = status_atual.data.x_pos >= 3276;
-                atualizar_origem_alerta(agua, chuva);
-                tocar_alarme();
+                buzzer_control(true, agua, chuva);
             } else {
-                desligar_alarme();
+                buzzer_control(false, false, false);
             }
         }
-        alarme_loop();
+        buzzer_loop();
         vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(10));
     }
 }
