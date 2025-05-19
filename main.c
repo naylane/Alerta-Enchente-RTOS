@@ -1,4 +1,3 @@
-//Bibliotecas inclusas
 #include "pico/stdlib.h"
 #include "pico/bootrom.h"
 #include "hardware/gpio.h"
@@ -15,7 +14,6 @@
 #include "queue.h"
 #include <stdio.h>
 
-//Configuração de pinos
 #define I2C_PORT i2c1
 #define I2C_SDA 14
 #define I2C_SCL 15
@@ -43,6 +41,42 @@ typedef struct {
 //Definição das filas
 QueueHandle_t xQueueJoystickData;
 QueueHandle_t xQueueStatus;
+
+void vModoTask(void *params);
+void vJoystickTask(void *params);
+void vDisplayTask(void *params);
+void vLedRGBTask(void *params);
+void vBuzzerTask(void *params);
+void vMatrizLEDTask(void *params);
+void gpio_irq_handler(uint gpio, uint32_t events);
+
+
+// Função principal
+int main() {
+    // Ativa BOOTSEL via botão B
+    gpio_init(BUTTON_B);
+    gpio_set_dir(BUTTON_B, GPIO_IN);
+    gpio_pull_up(BUTTON_B);
+    gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
+
+    stdio_init_all();
+
+    // Cria a fila para compartilhamento de valor do joystick
+    xQueueJoystickData = xQueueCreate(5, sizeof(joystick_data_t));
+    xQueueStatus = xQueueCreate(5, sizeof(status_t));
+
+    // Criação das tasks
+    xTaskCreate(vJoystickTask, "Joystick Task", 256, NULL, 1, NULL);
+    xTaskCreate(vModoTask, "Modo Task", 256, NULL, 1, NULL);
+    xTaskCreate(vDisplayTask, "Display Task", 512, NULL, 1, NULL);
+    xTaskCreate(vLedRGBTask, "LED RGB Task", 256, NULL, 1, NULL);
+    xTaskCreate(vBuzzerTask, "Buzzer Task", 256, NULL, 1, NULL);
+    xTaskCreate(vMatrizLEDTask, "Matriz Task", 256, NULL, 1, NULL);
+    
+    // Inicia o agendador
+    vTaskStartScheduler();
+    panic_unsupported();
+}
 
 //Tarefa para definir modo (enchente ou não)
 void vModoTask(void *params) {
@@ -103,16 +137,16 @@ void vDisplayTask(void *params) {
 
     status_t status_atual;
 
-    char pctAgua_str[32];
-    char pctChuva_str[32];
+    char agua_str[20];
+    char chuva_str[20];
 
     bool cor = true;
     while (true){
         if (xQueueReceive(xQueueStatus, &status_atual, portMAX_DELAY) == pdTRUE){
                uint pct_agua = (status_atual.data.y_pos * 100) / 4095;
                uint pct_chuva = (status_atual.data.x_pos * 100) / 4095;
-               sprintf(pctAgua_str, "Nvl agua: %d", pct_agua);
-                sprintf(pctChuva_str, "Nvl chuva: %d", pct_chuva);
+               sprintf(agua_str, "Agua: %d %%", pct_agua);
+               sprintf(chuva_str, "Chuva: %d %%", pct_chuva);
 
                if (status_atual.alerta_ativo){
                     ssd1306_fill(&ssd, false);
@@ -120,20 +154,20 @@ void vDisplayTask(void *params) {
                     ssd1306_line(&ssd, 3, 20, 122, 20, true);
                     ssd1306_line(&ssd, 3, 40, 122, 40, true);
                     
-                    ssd1306_draw_string(&ssd, "Modo: Enchente", 5, 5);
-                    ssd1306_draw_string(&ssd, "ALERTA!", 38, 26);
-                    ssd1306_draw_string(&ssd, pctAgua_str, 5, 42);
-                    ssd1306_draw_string(&ssd, pctChuva_str, 5, 52);
+                    ssd1306_draw_string(&ssd, "  MONITORADOR", 5, 5);
+                    ssd1306_draw_string(&ssd, "  Enchente!", 15, 26);
+                    ssd1306_draw_string(&ssd, chuva_str, 5, 44);
+                    ssd1306_draw_string(&ssd, agua_str, 5, 54);
                } else {
                     ssd1306_fill(&ssd, false);
                     ssd1306_rect(&ssd, 3, 3, 122, 60, true, false);
                     ssd1306_line(&ssd, 3, 20, 122, 20, true);
                     ssd1306_line(&ssd, 3, 40, 122, 40, true);
                     
-                    ssd1306_draw_string(&ssd, "Modo: Normal", 5, 5);
-                    ssd1306_draw_string(&ssd, "Tudo bem!", 32, 26);
-                    ssd1306_draw_string(&ssd, pctAgua_str, 5, 42);
-                    ssd1306_draw_string(&ssd, pctChuva_str, 5, 52);
+                    ssd1306_draw_string(&ssd, "  MONITORADOR", 5, 5);
+                    ssd1306_draw_string(&ssd, "Estado Normal", 15, 26);
+                    ssd1306_draw_string(&ssd, chuva_str, 5, 44);
+                    ssd1306_draw_string(&ssd, agua_str, 5, 54);
                }
                ssd1306_send_data(&ssd);
         }                       
@@ -234,30 +268,3 @@ void gpio_irq_handler(uint gpio, uint32_t events) {
     reset_usb_boot(0, 0);
 }
 
-
-//Função principal
-int main() {
-    // Ativa BOOTSEL via botão B
-    gpio_init(BUTTON_B);
-    gpio_set_dir(BUTTON_B, GPIO_IN);
-    gpio_pull_up(BUTTON_B);
-    gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
-
-    stdio_init_all();
-
-    // Cria a fila para compartilhamento de valor do joystick
-    xQueueJoystickData = xQueueCreate(5, sizeof(joystick_data_t));
-    xQueueStatus = xQueueCreate(5, sizeof(status_t));
-
-    // Criação das tasks
-    xTaskCreate(vJoystickTask, "Joystick Task", 256, NULL, 1, NULL);
-    xTaskCreate(vModoTask, "Modo Task", 256, NULL, 1, NULL);
-    xTaskCreate(vDisplayTask, "Display Task", 512, NULL, 1, NULL);
-    xTaskCreate(vLedRGBTask, "LED RGB Task", 256, NULL, 1, NULL);
-    xTaskCreate(vBuzzerTask, "Buzzer Task", 256, NULL, 1, NULL);
-    xTaskCreate(vMatrizLEDTask, "Matriz Task", 256, NULL, 1, NULL);
-    
-    // Inicia o agendador
-    vTaskStartScheduler();
-    panic_unsupported();
-}
