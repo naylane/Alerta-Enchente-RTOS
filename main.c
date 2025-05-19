@@ -26,19 +26,19 @@
 
 #define BUTTON_B 6
 
-//Estrutura de posição do joystick
+// Estrutura de posição do joystick
 typedef struct {
     uint16_t x_pos;
     uint16_t y_pos;
 } joystick_data_t;
 
-//Estrutura de informação da enchente
+// Estrutura de informação da enchente
 typedef struct {
     joystick_data_t data;
     bool alerta_ativo;
 } status_t;
 
-//Definição das filas
+// Filas
 QueueHandle_t xQueueJoystickData;
 QueueHandle_t xQueueStatus;
 
@@ -51,7 +51,6 @@ void vMatrizLEDTask(void *params);
 void gpio_irq_handler(uint gpio, uint32_t events);
 
 
-// Função principal
 int main() {
     // Ativa BOOTSEL via botão B
     gpio_init(BUTTON_B);
@@ -61,11 +60,11 @@ int main() {
 
     stdio_init_all();
 
-    // Cria a fila para compartilhamento de valor do joystick
+    // Inicializa fila
     xQueueJoystickData = xQueueCreate(5, sizeof(joystick_data_t));
     xQueueStatus = xQueueCreate(5, sizeof(status_t));
 
-    // Criação das tasks
+    // Cria as tarefas
     xTaskCreate(vJoystickTask, "Joystick Task", 256, NULL, 1, NULL);
     xTaskCreate(vModoTask, "Modo Task", 256, NULL, 1, NULL);
     xTaskCreate(vDisplayTask, "Display Task", 512, NULL, 1, NULL);
@@ -78,7 +77,8 @@ int main() {
     panic_unsupported();
 }
 
-//Tarefa para definir modo (enchente ou não)
+
+// Define se está em modo alerta de enchente ou normal, baseado no joystick.
 void vModoTask(void *params) {
 
     status_t status_atual;
@@ -101,7 +101,8 @@ void vModoTask(void *params) {
     }
 }
 
-//Tarefa de leitura do ADC do Joystick
+
+// Lê valores do joystick (ADC) e envia para a fila.
 void vJoystickTask(void *params) {
     adc_gpio_init(JOYSTICK_Y);
     adc_gpio_init(JOYSTICK_X);
@@ -121,7 +122,8 @@ void vJoystickTask(void *params) {
     }
 }
 
-//Tarefa de exibição de infos no display
+
+// Mostra informações no display OLED conforme o status do sistema.
 void vDisplayTask(void *params) {
     i2c_init(I2C_PORT, 400 * 1000);
     gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);
@@ -174,7 +176,8 @@ void vDisplayTask(void *params) {
     }
 }
 
-//Tarefa do LED RGB
+
+// Controla os LEDs RGB para indicar alerta ou estado normal.
 void vLedRGBTask(void *params) {
     gpio_init(LED_GREEN);
     gpio_set_dir(LED_GREEN, GPIO_OUT);
@@ -199,7 +202,8 @@ void vLedRGBTask(void *params) {
     }
 }
 
-//Tarefa que configura o buzzer
+
+// Controla o buzzer conforme o status de alerta.
 void vBuzzerTask(void *params) {
     buzzer_init(BUZZER_PIN); 
     status_t status_atual;
@@ -222,7 +226,8 @@ void vBuzzerTask(void *params) {
     }
 }
 
-//Tarefa que exibe animações na matriz de LED
+
+// Exibe animações na matriz de LEDs conforme o estado do sistema. Exclamação em vermelho para alerta e gota de água em azul para normal.
 void vMatrizLEDTask(void *params) {
     // Inicializa o PIO para controlar a matriz de LEDs (WS2812)
     PIO pio = pio0;
@@ -247,7 +252,8 @@ void vMatrizLEDTask(void *params) {
     }
 }
 
-// Modo BOOTSEL com botão B
+
+// Reinicia o sistema via botão B (modo BOOTSEL).
 void gpio_irq_handler(uint gpio, uint32_t events) {
     reset_usb_boot(0, 0);
 }
