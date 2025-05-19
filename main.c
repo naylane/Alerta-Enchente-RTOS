@@ -1,12 +1,14 @@
 //Bibliotecas inclusas
 #include "pico/stdlib.h"
+#include "pico/bootrom.h"
 #include "hardware/gpio.h"
 #include "hardware/adc.h"
 #include "hardware/i2c.h"
 #include "lib/ssd1306.h"
 #include "lib/font.h"
 #include "lib/buzzer.h"
-#include "lib/matriz_led.h"
+#include "lib/ws2812.h"
+#include "ws2812.pio.h"
 #include "hardware/pwm.h"
 #include "FreeRTOS.h"
 #include "task.h"
@@ -24,16 +26,16 @@
 #define LED_RED  13
 #define BUZZER_PIN 21
 
+#define BUTTON_B 6
+
 //Estrutura de posição do joystick
-typedef struct
-{
+typedef struct {
     uint16_t x_pos;
     uint16_t y_pos;
 } joystick_data_t;
 
 //Estrutura de informação da enchente
-typedef struct 
-{
+typedef struct {
     joystick_data_t data;
     bool alerta_ativo;
 } status_t;
@@ -43,7 +45,7 @@ QueueHandle_t xQueueJoystickData;
 QueueHandle_t xQueueStatus;
 
 //Tarefa para definir modo (enchente ou não)
-void vModoTask(void *params){
+void vModoTask(void *params) {
 
     status_t status_atual;
     joystick_data_t joydata;
@@ -66,8 +68,7 @@ void vModoTask(void *params){
 }
 
 //Tarefa de leitura do ADC do Joystick
-void vJoystickTask(void *params)
-{
+void vJoystickTask(void *params) {
     adc_gpio_init(ADC_JOYSTICK_Y);
     adc_gpio_init(ADC_JOYSTICK_X);
     adc_init();
@@ -88,8 +89,7 @@ void vJoystickTask(void *params)
 }
 
 //Tarefa de exibição de infos no display
-void vDisplayTask(void *params)
-{
+void vDisplayTask(void *params) {
     i2c_init(I2C_PORT, 400 * 1000);
     gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);
     gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);
@@ -142,8 +142,7 @@ void vDisplayTask(void *params)
 }
 
 //Tarefa do LED RGB com PWM
-void vLedRGBTask(void *params)
-{
+void vLedRGBTask(void *params) {
     gpio_set_function(LED_RED, GPIO_FUNC_PWM);   // Configura GPIO como PWM
     uint redSlice = pwm_gpio_to_slice_num(LED_RED); // Obtém o slice de PWM
     pwm_set_wrap(redSlice, 100);                     // Define resolução (0–100)
@@ -183,7 +182,7 @@ void vLedRGBTask(void *params)
 }
 
 //Tarefa que configura o buzzer
-void vBuzzerTask(void *params){
+void vBuzzerTask(void *params) {
     buzzer_init(BUZZER_PIN); 
     status_t status_atual;
     TickType_t xLastWakeTime;
@@ -207,49 +206,43 @@ void vBuzzerTask(void *params){
 }
 
 //Tarefa que exibe animações na matriz de LED
-void vMatrizLEDTask(void *params){
-    iniciar_matriz_leds(pio0, 0, led_matrix_pin);
-    clear_matrix(pio0, 0);
-    update_leds(pio, sm);
+void vMatrizLEDTask(void *params) {
+    // Inicializa o PIO para controlar a matriz de LEDs (WS2812)
+    PIO pio = pio0;
+    uint sm = 0;
+    uint offset = pio_add_program(pio, &pio_matrix_program);
+    pio_matrix_program_init(pio, sm, offset, WS2812_PIN);
+    clear_matrix(pio, sm);
 
     status_t status_atual;
     TickType_t lastWakeTime;
 
     while(true){
         if (xQueueReceive(xQueueStatus, &status_atual, portMAX_DELAY) == pdTRUE){
-            int nivel_x = (status_atual.data.x_pos * 100) / 4095;
-            int nivel_y = (status_atual.data.y_pos * 100) / 4095;
-            int nivel = (nivel_x > nivel_y) ? nivel_x : nivel_y;
-            int linhas_ativas = (nivel + 9) / 20;
-
             lastWakeTime = xTaskGetTickCount();
             if (status_atual.alerta_ativo){
-                exibir_padrao();
+                set_pattern(pio, sm, 1, "vermelho"); // ALERTA
                 vTaskDelayUntil(&lastWakeTime, pdMS_TO_TICKS(250));
             } else {
-                exibir_nivel(linhas_ativas, 0, 0, 30); 
+                set_pattern(pio, sm, 0, "azul");
             }
         }
     }
 }
 
 // Modo BOOTSEL com botão B
-#include "pico/bootrom.h"
-#define botaoB 6
-void gpio_irq_handler(uint gpio, uint32_t events)
-{
+void gpio_irq_handler(uint gpio, uint32_t events) {
     reset_usb_boot(0, 0);
 }
 
 
 //Função principal
-int main()
-{
-    // Ativa BOOTSEL via botão
-    gpio_init(botaoB);
-    gpio_set_dir(botaoB, GPIO_IN);
-    gpio_pull_up(botaoB);
-    gpio_set_irq_enabled_with_callback(botaoB, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
+int main() {
+    // Ativa BOOTSEL via botão B
+    gpio_init(BUTTON_B);
+    gpio_set_dir(BUTTON_B, GPIO_IN);
+    gpio_pull_up(BUTTON_B);
+    gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
 
     stdio_init_all();
 

@@ -33,13 +33,12 @@ add_executable(${PROJECT_NAME}
         main.c 
         lib/ssd1306.c # Biblioteca para o display OLED
         lib/buzzer.c
-        lib/matriz_led.c
+        lib/ws2812.c
         )
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR})
 
-# Generate PIO header
-pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/ws2812.pio)
+pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/lib/ws2812.pio)
 
 target_link_libraries(${PROJECT_NAME} 
         pico_stdlib 
