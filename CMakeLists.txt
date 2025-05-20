@@ -22,19 +22,17 @@ include(pico_sdk_import.cmake)
 set(FREERTOS_KERNEL_PATH "C:/Users/nayla//FreeRTOS-Kernel")
 include(${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
 
-project(HidroAlerta C CXX ASM)
+project(Alerta-Enchente C CXX ASM)
 pico_sdk_init()
 
-
 include_directories(${CMAKE_SOURCE_DIR}/lib)
-
 
 add_executable(${PROJECT_NAME}  
         main.c 
         lib/ssd1306.c # Biblioteca para o display OLED
         lib/buzzer.c
         lib/ws2812.c
-        )
+    )
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR})
 
@@ -47,15 +45,12 @@ target_link_libraries(${PROJECT_NAME}
         hardware_adc
         hardware_pwm
         hardware_pio
+        hardware_clocks
         FreeRTOS-Kernel 
         FreeRTOS-Kernel-Heap4
-        )
+    )
 
 pico_enable_stdio_usb(${PROJECT_NAME} 1)
 pico_enable_stdio_uart(${PROJECT_NAME} 0)
 
 pico_add_extra_outputs(${PROJECT_NAME})
-
-
-
-

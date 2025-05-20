@@ -5,6 +5,7 @@
 #include "hardware/pwm.h"
 #include "hardware/adc.h"
 #include "hardware/i2c.h"
+#include "hardware/clocks.h"
 
 #include "lib/ssd1306.h"
 #include "lib/font.h"
@@ -47,7 +48,7 @@ QueueHandle_t xQueueStatus;
 void vModoTask(void *params);
 void vJoystickTask(void *params);
 void vDisplayTask(void *params);
-void vMatrizLEDTask(void *params);
+void vMatrizTask(void *params);
 void vBuzzerTask(void *params);
 void vLedRGBTask(void *params);
 void gpio_irq_handler(uint gpio, uint32_t events);
@@ -62,17 +63,25 @@ int main() {
 
     stdio_init_all();
 
+    // Configura clock do sistema
+    if (set_sys_clock_khz(128000, false)) {
+        printf("Configuração do clock do sistema completa!\n");
+    } else {
+        printf("Configuração do clock do sistema falhou!\n");
+        return -1;
+    }
+
     // Inicializa fila
     xQueueJoystickData = xQueueCreate(5, sizeof(joystick_data_t));
     xQueueStatus = xQueueCreate(5, sizeof(status_t));
 
     // Cria as tarefas
-    xTaskCreate(vJoystickTask, "Joystick Task", 256, NULL, 1, NULL);
     xTaskCreate(vModoTask, "Modo Task", 256, NULL, 1, NULL);
+    xTaskCreate(vJoystickTask, "Joystick Task", 256, NULL, 1, NULL);
     xTaskCreate(vDisplayTask, "Display Task", 512, NULL, 1, NULL);
-    xTaskCreate(vLedRGBTask, "LED RGB Task", 256, NULL, 1, NULL);
+    xTaskCreate(vMatrizTask, "Matriz Task", 256, NULL, 1, NULL);
     xTaskCreate(vBuzzerTask, "Buzzer Task", 256, NULL, 1, NULL);
-    xTaskCreate(vMatrizLEDTask, "Matriz Task", 256, NULL, 1, NULL);
+    xTaskCreate(vLedRGBTask, "LED RGB Task", 256, NULL, 1, NULL);
     
     // Inicia o agendador
     vTaskStartScheduler();
@@ -180,7 +189,7 @@ void vDisplayTask(void *params) {
 
 
 // Exibe animações na matriz de LEDs conforme o estado do sistema. Exclamação em vermelho para alerta e gota de água em azul para normal.
-void vMatrizLEDTask(void *params) {
+void vMatrizTask(void *params) {
     // Inicializa o PIO para controlar a matriz de LEDs (WS2812)
     PIO pio = pio0;
     uint sm = 0;

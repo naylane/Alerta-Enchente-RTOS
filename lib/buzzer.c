@@ -17,10 +17,13 @@ void buzzer_init(int pin) {
     gpio_set_function(pin, GPIO_FUNC_PWM);
     buzzer.slice = pwm_gpio_to_slice_num(pin);
     buzzer.channel = pwm_gpio_to_channel(pin);
-    pwm_set_clkdiv(buzzer.slice, 125.0);
-    pwm_set_wrap(buzzer.slice, 1000);
-    pwm_set_chan_level(buzzer.slice, buzzer.channel, 500);
+
+    uint32_t clock_div = clock_get_hz(clk_sys) / (4000 * 4096);
+    pwm_set_clkdiv(buzzer.slice, clock_div);
+
+    pwm_set_chan_level(buzzer.slice, buzzer.channel, 0);
     pwm_set_enabled(buzzer.slice, false);
+
     buzzer.ativo = false;
     buzzer.estado = false;
     buzzer.ultima_execucao = 0;
@@ -61,15 +64,13 @@ void buzzer_loop() {
     if (buzzer.estado) {
         int freq = 0;
         switch (buzzer.tipo_alerta) {
-            case ALERTA_AGUA:   freq = 50; break;
-            case ALERTA_CHUVA:  freq = 100; break;
-            case ALERTA_AMBOS:  freq = 200; break;
+            case ALERTA_AGUA:   freq = 500; break;
+            case ALERTA_CHUVA:  freq = 800; break;
+            case ALERTA_AMBOS:  freq = 1000; break;
             default:            freq = 0;   break;
         }
         if (freq > 0) {
-            uint32_t wrap = 1000000 / freq;
-            pwm_set_wrap(buzzer.slice, wrap);
-            pwm_set_chan_level(buzzer.slice, buzzer.channel, wrap / 2);
+            pwm_set_chan_level(buzzer.slice, buzzer.channel, freq/2);
             pwm_set_enabled(buzzer.slice, true);
         }
     } else {
