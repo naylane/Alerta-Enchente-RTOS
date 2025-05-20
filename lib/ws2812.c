@@ -22,13 +22,13 @@ const uint32_t numbers[][25] = {
     0, 0, 1, 0, 0,
     0, 0, 0, 0, 0,
     0, 1, 1, 1, 0,
-    0, 1, 1, 1, 0,
+    1, 1, 1, 1, 1,
     1, 1, 1, 1, 1,
 };
 
 const uint32_t colors[][3] = {
     {0, 0, 0},      // Preto
-    {5, 2, 1},    // Marrom
+    {5, 2, 1},      // Marrom
     {10, 0, 0},     // Vermelho
     {5, 1, 0},      // Laranja
     {10, 5, 0},     // Amarelo
