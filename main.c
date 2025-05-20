@@ -1,14 +1,17 @@
 #include "pico/stdlib.h"
 #include "pico/bootrom.h"
+
 #include "hardware/gpio.h"
+#include "hardware/pwm.h"
 #include "hardware/adc.h"
 #include "hardware/i2c.h"
+
 #include "lib/ssd1306.h"
 #include "lib/font.h"
 #include "lib/buzzer.h"
 #include "lib/ws2812.h"
 #include "ws2812.pio.h"
-#include "hardware/pwm.h"
+
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
@@ -23,7 +26,6 @@
 #define LED_GREEN 11
 #define LED_RED  13
 #define BUZZER_PIN 21
-
 #define BUTTON_B 6
 
 // Estrutura de posição do joystick
@@ -45,9 +47,9 @@ QueueHandle_t xQueueStatus;
 void vModoTask(void *params);
 void vJoystickTask(void *params);
 void vDisplayTask(void *params);
-void vLedRGBTask(void *params);
-void vBuzzerTask(void *params);
 void vMatrizLEDTask(void *params);
+void vBuzzerTask(void *params);
+void vLedRGBTask(void *params);
 void gpio_irq_handler(uint gpio, uint32_t events);
 
 
@@ -177,28 +179,28 @@ void vDisplayTask(void *params) {
 }
 
 
-// Controla os LEDs RGB para indicar alerta ou estado normal.
-void vLedRGBTask(void *params) {
-    gpio_init(LED_GREEN);
-    gpio_set_dir(LED_GREEN, GPIO_OUT);
-    gpio_put(LED_GREEN, 0);
-    gpio_init(LED_RED);
-    gpio_set_dir(LED_RED, GPIO_OUT);
-    gpio_put(LED_RED, 0);
+// Exibe animações na matriz de LEDs conforme o estado do sistema. Exclamação em vermelho para alerta e gota de água em azul para normal.
+void vMatrizLEDTask(void *params) {
+    // Inicializa o PIO para controlar a matriz de LEDs (WS2812)
+    PIO pio = pio0;
+    uint sm = 0;
+    uint offset = pio_add_program(pio, &pio_matrix_program);
+    pio_matrix_program_init(pio, sm, offset, WS2812_PIN);
+    clear_matrix(pio, sm);
 
     status_t status_atual;
-    while (true) {
-        if (xQueueReceive(xQueueStatus, &status_atual, portMAX_DELAY) == pdTRUE){            
-            if (status_atual.alerta_ativo) {
-                gpio_put(LED_GREEN, 0);
-                gpio_put(LED_RED, 1);
+    TickType_t lastWakeTime;
+
+    while(true){
+        if (xQueueReceive(xQueueStatus, &status_atual, portMAX_DELAY) == pdTRUE){
+            lastWakeTime = xTaskGetTickCount();
+            if (status_atual.alerta_ativo){
+                set_pattern(pio, sm, 1, "vermelho");
+                vTaskDelayUntil(&lastWakeTime, pdMS_TO_TICKS(250));
             } else {
-                gpio_put(LED_GREEN, 1);
-                gpio_put(LED_RED, 0);
+                set_pattern(pio, sm, 0, "azul");
             }
-            
         }
-        vTaskDelay(pdMS_TO_TICKS(50)); 
     }
 }
 
@@ -227,28 +229,28 @@ void vBuzzerTask(void *params) {
 }
 
 
-// Exibe animações na matriz de LEDs conforme o estado do sistema. Exclamação em vermelho para alerta e gota de água em azul para normal.
-void vMatrizLEDTask(void *params) {
-    // Inicializa o PIO para controlar a matriz de LEDs (WS2812)
-    PIO pio = pio0;
-    uint sm = 0;
-    uint offset = pio_add_program(pio, &pio_matrix_program);
-    pio_matrix_program_init(pio, sm, offset, WS2812_PIN);
-    clear_matrix(pio, sm);
+// Controla os LEDs RGB para indicar alerta ou estado normal.
+void vLedRGBTask(void *params) {
+    gpio_init(LED_GREEN);
+    gpio_set_dir(LED_GREEN, GPIO_OUT);
+    gpio_put(LED_GREEN, 0);
+    gpio_init(LED_RED);
+    gpio_set_dir(LED_RED, GPIO_OUT);
+    gpio_put(LED_RED, 0);
 
     status_t status_atual;
-    TickType_t lastWakeTime;
-
-    while(true){
-        if (xQueueReceive(xQueueStatus, &status_atual, portMAX_DELAY) == pdTRUE){
-            lastWakeTime = xTaskGetTickCount();
-            if (status_atual.alerta_ativo){
-                set_pattern(pio, sm, 1, "vermelho");
-                vTaskDelayUntil(&lastWakeTime, pdMS_TO_TICKS(250));
+    while (true) {
+        if (xQueueReceive(xQueueStatus, &status_atual, portMAX_DELAY) == pdTRUE){            
+            if (status_atual.alerta_ativo) {
+                gpio_put(LED_GREEN, 0);
+                gpio_put(LED_RED, 1);
             } else {
-                set_pattern(pio, sm, 0, "azul");
+                gpio_put(LED_GREEN, 1);
+                gpio_put(LED_RED, 0);
             }
+            
         }
+        vTaskDelay(pdMS_TO_TICKS(50)); 
     }
 }
 
