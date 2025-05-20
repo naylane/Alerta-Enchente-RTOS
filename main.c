@@ -1,20 +1,18 @@
 #include "main.h"
 
-// Estrutura de posição do joystick
 typedef struct {
     uint16_t x_pos;
     uint16_t y_pos;
 } joystick_data_t;
 
-// Estrutura de informação da enchente
 typedef struct {
     joystick_data_t data;
     bool alerta_ativo;
-} status_t;
+} estado_t;
 
 // Filas
 QueueHandle_t xQueueJoystickData;
-QueueHandle_t xQueueStatus;
+QueueHandle_t xQueueState;
 
 void vModoTask(void *params);
 void vJoystickTask(void *params);
@@ -44,7 +42,7 @@ int main() {
 
     // Inicializa fila
     xQueueJoystickData = xQueueCreate(5, sizeof(joystick_data_t));
-    xQueueStatus = xQueueCreate(5, sizeof(status_t));
+    xQueueState = xQueueCreate(5, sizeof(estado_t));
 
     // Cria as tarefas
     xTaskCreate(vModoTask, "Modo Task", 256, NULL, 1, NULL);
@@ -54,7 +52,6 @@ int main() {
     xTaskCreate(vBuzzerTask, "Buzzer Task", 256, NULL, 1, NULL);
     xTaskCreate(vLedRGBTask, "LED RGB Task", 256, NULL, 1, NULL);
     
-    // Inicia o agendador
     vTaskStartScheduler();
     panic_unsupported();
 }
@@ -62,22 +59,21 @@ int main() {
 
 // Define se está em modo alerta de enchente ou normal, baseado no joystick.
 void vModoTask(void *params) {
-
-    status_t status_atual;
+    estado_t estado_atual;
     joystick_data_t joydata;
 
-    while (true){
-        if (xQueueReceive(xQueueJoystickData, &joydata, portMAX_DELAY) == pdTRUE){
+    while (true) {
+        if (xQueueReceive(xQueueJoystickData, &joydata, portMAX_DELAY) == pdTRUE) {
             uint16_t agua = joydata.y_pos;
             uint16_t chuva = joydata.x_pos;
-            if (agua >= 2866 || chuva >= 3276){ //Definição dos numeros de acordo com a porcentagem do enunciado
-                status_atual.data = joydata;
-                status_atual.alerta_ativo = true;
+            if (agua >= 2866 || chuva >= 3276) {
+                estado_atual.data = joydata;
+                estado_atual.alerta_ativo = true;
             } else {
-                status_atual.data = joydata;
-                status_atual.alerta_ativo = false;
+                estado_atual.data = joydata;
+                estado_atual.alerta_ativo = false;
             }
-        xQueueSend(xQueueStatus, &status_atual, 0); 
+        xQueueSend(xQueueState, &estado_atual, 0); 
         vTaskDelay(pdMS_TO_TICKS(100));   
         }
     }
@@ -105,7 +101,7 @@ void vJoystickTask(void *params) {
 }
 
 
-// Mostra informações no display OLED conforme o status do sistema.
+// Mostra informações no display OLED conforme o estado do sistema.
 void vDisplayTask(void *params) {
     i2c_init(I2C_PORT, 400 * 1000);
     gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);
@@ -118,20 +114,20 @@ void vDisplayTask(void *params) {
     ssd1306_config(&ssd);
     ssd1306_send_data(&ssd);
 
-    status_t status_atual;
+    estado_t estado_atual;
 
     char agua_str[20];
     char chuva_str[20];
 
     bool cor = true;
     while (true){
-        if (xQueueReceive(xQueueStatus, &status_atual, portMAX_DELAY) == pdTRUE){
-               uint pct_agua = (status_atual.data.y_pos * 100) / 4095;
-               uint pct_chuva = (status_atual.data.x_pos * 100) / 4095;
+        if (xQueueReceive(xQueueState, &estado_atual, portMAX_DELAY) == pdTRUE){
+               uint pct_agua = (estado_atual.data.y_pos * 100) / 4095;
+               uint pct_chuva = (estado_atual.data.x_pos * 100) / 4095;
                sprintf(agua_str, "Agua: %d %%", pct_agua);
                sprintf(chuva_str, "Chuva: %d %%", pct_chuva);
 
-               if (status_atual.alerta_ativo){
+               if (estado_atual.alerta_ativo){
                     ssd1306_fill(&ssd, false);
                     ssd1306_rect(&ssd, 3, 3, 122, 60, true, false);
                     ssd1306_line(&ssd, 3, 20, 122, 20, true);
@@ -168,13 +164,13 @@ void vMatrizTask(void *params) {
     pio_matrix_program_init(pio, sm, offset, WS2812_PIN);
     clear_matrix(pio, sm);
 
-    status_t status_atual;
+    estado_t estado_atual;
     TickType_t lastWakeTime;
 
     while(true){
-        if (xQueueReceive(xQueueStatus, &status_atual, portMAX_DELAY) == pdTRUE){
+        if (xQueueReceive(xQueueState, &estado_atual, portMAX_DELAY) == pdTRUE){
             lastWakeTime = xTaskGetTickCount();
-            if (status_atual.alerta_ativo){
+            if (estado_atual.alerta_ativo){
                 set_pattern(pio, sm, 1, "vermelho");
                 vTaskDelayUntil(&lastWakeTime, pdMS_TO_TICKS(250));
             } else {
@@ -185,19 +181,19 @@ void vMatrizTask(void *params) {
 }
 
 
-// Controla o buzzer conforme o status de alerta.
+// Controla o buzzer conforme o estado do sistema.
 void vBuzzerTask(void *params) {
     buzzer_init(BUZZER_PIN); 
-    status_t status_atual;
+    estado_t estado_atual;
     TickType_t xLastWakeTime;
 
     xLastWakeTime = xTaskGetTickCount();
 
     while(true){
-        if (xQueueReceive(xQueueStatus, &status_atual, portMAX_DELAY) == pdTRUE){
-            if (status_atual.alerta_ativo){
-                bool agua = status_atual.data.y_pos >= 2866;
-                bool chuva = status_atual.data.x_pos >= 3276;
+        if (xQueueReceive(xQueueState, &estado_atual, portMAX_DELAY) == pdTRUE){
+            if (estado_atual.alerta_ativo){
+                bool agua = estado_atual.data.y_pos >= 2866;
+                bool chuva = estado_atual.data.x_pos >= 3276;
                 buzzer_control(true, agua, chuva);
             } else {
                 buzzer_control(false, false, false);
@@ -218,10 +214,10 @@ void vLedRGBTask(void *params) {
     gpio_set_dir(LED_RED, GPIO_OUT);
     gpio_put(LED_RED, 0);
 
-    status_t status_atual;
+    estado_t estado_atual;
     while (true) {
-        if (xQueueReceive(xQueueStatus, &status_atual, portMAX_DELAY) == pdTRUE){            
-            if (status_atual.alerta_ativo) {
+        if (xQueueReceive(xQueueState, &estado_atual, portMAX_DELAY) == pdTRUE){            
+            if (estado_atual.alerta_ativo) {
                 gpio_put(LED_GREEN, 0);
                 gpio_put(LED_RED, 1);
             } else {
